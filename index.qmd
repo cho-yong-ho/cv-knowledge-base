@@ -1,0 +1,133 @@
+---
+title: "AI Computer Vision Knowledge Base"
+subtitle: "고전 영상처리부터 최신 VLM, 3D Vision, Embodied AI까지 체계적으로 정리하는 기술 위키 & 자율형 연구 에이전트"
+page-layout: full
+listing:
+  - id: recent-posts
+    contents:
+      - "docs/**/*.qmd"
+      - "!docs/**/index.qmd"
+    type: default
+    sort: "date desc"
+    categories: true
+    sort-ui: true
+    filter-ui: true
+    page-size: 10
+    fields: [date, title, subtitle, categories, reading-time]
+---
+
+::: {.hero-banner}
+<h1 class="hero-title">Computer Vision Knowledge Base</h1>
+<p class="hero-subtitle">
+컴퓨터비전의 고전 수학적 알고리즘부터 최신 딥러닝 백본, 3D 가우시안 스플래팅, 대규모 멀티모달 모델(VLM) 및 로보틱스 파운데이션 모델까지 체계적으로 집대성한 개인용 위키 및 자율 연구 플랫폼입니다.
+</p>
+:::
+
+## 📂 Taxonomy & Categories
+
+아래 카테고리를 선택하여 관심 분야의 연구 노트와 구현 코드를 탐색할 수 있습니다.
+
+<div class="category-grid">
+  <div class="category-card">
+    <div>
+      <span class="category-badge">Category 01</span>
+      <h3 class="category-title">01. Classical CV</h3>
+      <p class="category-desc">
+        선형 필터링, Sobel/Canny 에지 검출, Harris Corner, SIFT/SURF 특징점 추출, 에피폴라 기하학 및 카메라 캘리브레이션 등 전통 영상처리 원리를 다룹니다.
+      </p>
+    </div>
+    <a href="docs/01-classical-cv/index.qmd" class="category-link-text">문서 탐색하기 →</a>
+  </div>
+
+  <div class="category-card">
+    <div>
+      <span class="category-badge">Category 02</span>
+      <h3 class="category-title">02. Backbones</h3>
+      <p class="category-desc">
+        ResNet, ConvNeXt 등 합성곱 네트워크(CNN)부터 Vision Transformer(ViT), Swin, DINOv2 자기지도학습, 그리고 최신 Vision Mamba(SSM)까지 시각 백본을 다룹니다.
+      </p>
+    </div>
+    <a href="docs/02-backbones/index.qmd" class="category-link-text">문서 탐색하기 →</a>
+  </div>
+
+  <div class="category-card">
+    <div>
+      <span class="category-badge">Category 03</span>
+      <h3 class="category-title">03. Core Tasks</h3>
+      <p class="category-desc">
+        Object Detection (YOLO, DETR), Image Segmentation (Mask R-CNN, SAM 2), Pose Estimation, Depth Estimation 및 Multi-Object Tracking 등 핵심 비전 과제를 다룹니다.
+      </p>
+    </div>
+    <a href="docs/03-core-tasks/index.qmd" class="category-link-text">문서 탐색하기 →</a>
+  </div>
+
+  <div class="category-card">
+    <div>
+      <span class="category-badge">Category 04</span>
+      <h3 class="category-title">04. 3D & Neural Rendering</h3>
+      <p class="category-desc">
+        신경 방사 휘도장(NeRF), 3D 가우시안 스플래팅(3DGS), Structure-from-Motion, Visual SLAM 및 포인트 클라우드 처리 등 3차원 공간 복원 기술을 다룹니다.
+      </p>
+    </div>
+    <a href="docs/04-3d-rendering/index.qmd" class="category-link-text">문서 탐색하기 →</a>
+  </div>
+
+  <div class="category-card">
+    <div>
+      <span class="category-badge">Category 05</span>
+      <h3 class="category-title">05. Modern Trends</h3>
+      <p class="category-desc">
+        대규모 시각-언어 모델(VLM, CLIP, LLaVA), 확산 모델(Diffusion & Flow Matching), 비디오 생성(Sora), 그리고 Embodied AI/VLA 로보틱스 트렌드를 다룹니다.
+      </p>
+    </div>
+    <a href="docs/05-modern-trends/index.qmd" class="category-link-text">문서 탐색하기 →</a>
+  </div>
+</div>
+
+---
+
+## ⚡ Framework & Features Showcase
+
+이 기술 위키는 **수학적 엄밀성(KaTeX)**과 **직관적 아키텍처 다이어그램(Mermaid.js)**을 결합하여 컴퓨터비전 개념을 가장 명확하게 전달하도록 설계되었습니다.
+
+### 1. 엄밀한 수학적 정식화 (KaTeX Math Engine)
+모든 비전 모델의 핵심 최적화 목적함수 및 투영 수식은 LaTeX 문법으로 렌더링됩니다.
+
+$$
+\mathcal{L}_{\text{total}} = (1 - \lambda)\mathcal{L}_1(I_{\text{render}}, I_{\text{gt}}) + \lambda \mathcal{L}_{\text{D-SSIM}}(I_{\text{render}}, I_{\text{gt}})
+$$
+
+* $I_{\text{render}} \in \mathbb{R}^{H \times W \times 3}$: 미분 가능한 래스터라이저에 의해 생성된 렌더링 이미지
+* $I_{\text{gt}} \in \mathbb{R}^{H \times W \times 3}$: 카메라로부터 촬영된 실제 Ground Truth 이미지
+* $\lambda \in [0, 1]$: 구조적 유사도(Structural Similarity) 손실 가중치 계수 (기본값: $\lambda = 0.2$)
+
+### 2. 파이프라인 및 신경망 시각화 (Mermaid.js)
+복잡한 비전 네트워크 및 데이터 흐름은 코드 블록 기반의 다이어그램으로 자동 렌더링됩니다.
+
+```{mermaid}
+flowchart LR
+    subgraph Data Acquisition
+        Img["Multi-view Images"] --> SfM["COLMAP SfM"]
+        SfM --> Points["Point Cloud (Sparse)"]
+    end
+    
+    subgraph Autonomous Agent Pipeline
+        Fetcher["arXiv / HF Fetcher"] --> Writer["Gemini Writer (.qmd)"]
+        Writer --> Publisher["Quarto Build & Deploy"]
+    end
+    
+    subgraph Knowledge Base
+        Points --> Render["3DGS / NeRF Wiki"]
+        Publisher --> Render
+    end
+```
+
+---
+
+## 📝 Recent Technical Notes & Papers
+
+지식 베이스에 최근 추가되거나 업데이트된 논문 분석 목록입니다.
+
+::: {#recent-posts}
+:::
+

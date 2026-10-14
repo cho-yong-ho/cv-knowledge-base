@@ -1,0 +1,28 @@
+---
+title: "02. Deep Learning Backbones"
+subtitle: "컴퓨터비전 딥러닝 백본 및 시각적 표현 학습 아키텍처"
+listing:
+  contents:
+    - "*.qmd"
+    - "!index.qmd"
+  type: default
+  sort: "date desc"
+  categories: true
+  sort-ui: true
+  filter-ui: true
+  fields: [date, title, subtitle, categories, reading-time]
+---
+
+::: {.callout-note}
+## Category Overview & Scope
+컴퓨터비전의 시각적 표현 학습(Visual Representation Learning)을 주도해 온 주요 백본 네트워크들을 다룹니다.
+
+* **Convolutional Neural Networks (CNN):** AlexNet, VGG, ResNet, EfficientNet, ConvNeXt
+* **Vision Transformers (ViT):** Standard ViT, Swin Transformer, DeiT, PVT
+* **Self-Supervised Learning (SSL):** MoCo, SimCLR, DINO, DINOv2, MAE (Masked Autoencoders)
+* **Next-Gen Architectures:** Vision Mamba (SSM), RWKV-Vision, State Space Models
+:::
+
+## Document List
+아래 목록은 이 카테고리에 등록된 기술 문서 및 백본 아키텍처 분석입니다.
+

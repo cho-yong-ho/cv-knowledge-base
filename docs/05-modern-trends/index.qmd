@@ -1,0 +1,27 @@
+---
+title: "05. Modern Vision Trends"
+subtitle: "최신 비전 패러다임 (VLM / Multimodal, Diffusion & Flow Matching, Embodied AI)"
+listing:
+  contents:
+    - "*.qmd"
+    - "!index.qmd"
+  type: default
+  sort: "date desc"
+  categories: true
+  sort-ui: true
+  filter-ui: true
+  fields: [date, title, subtitle, categories, reading-time]
+---
+
+::: {.callout-note}
+## Category Overview & Scope
+컴퓨터비전 연구의 최전선인 생성형 AI, 멀티모달 파운데이션 모델 및 체화된 지능(Embodied AI)을 다룹니다.
+
+* **Vision-Language Models (VLM):** CLIP, SigLIP, LLaVA, BLIP-2, Gemini Vision, GPT-4o Architecture
+* **Diffusion & Generative Modeling:** DDPM, Latent Diffusion (Stable Diffusion), Flow Matching (Flux), Diffusion Transformers (DiT), Video Diffusion (Sora)
+* **Embodied AI & Robotics:** Vision-Language-Action (VLA, RT-1/RT-2, OpenVLA), End-to-End Autonomous Driving, World Models (GAIA-1, Sora)
+:::
+
+## Document List
+아래 목록은 이 카테고리에 등록된 기술 문서 및 최신 연구 트렌드 분석입니다.
+

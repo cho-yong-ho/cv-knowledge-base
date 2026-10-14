@@ -1,0 +1,71 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "CV Knowledge Base"
+  description: "컴퓨터비전 고전 알고리즘부터 최신 트렌드까지 체계적으로 정리하는 기술 위키 & 자율형 연구 에이전트"
+  
+  search:
+    location: navbar
+    type: textbox
+    copy-button: true
+
+  navbar:
+    title: "CV Knowledge Base"
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Categories"
+        menu:
+          - text: "01. Classical CV"
+            href: docs/01-classical-cv/index.qmd
+          - text: "02. Backbones"
+            href: docs/02-backbones/index.qmd
+          - text: "03. Core Tasks"
+            href: docs/03-core-tasks/index.qmd
+          - text: "04. 3D & Neural Rendering"
+            href: docs/04-3d-rendering/index.qmd
+          - text: "05. Modern Trends"
+            href: docs/05-modern-trends/index.qmd
+    right:
+      - icon: github
+        href: https://github.com/
+
+  sidebar:
+    style: "docked"
+    search: true
+    collapse-level: 2
+    contents:
+      - section: "Knowledge Base"
+        contents:
+          - text: "01. Classical CV"
+            href: docs/01-classical-cv/index.qmd
+          - text: "02. Backbones"
+            href: docs/02-backbones/index.qmd
+          - text: "03. Core Tasks"
+            href: docs/03-core-tasks/index.qmd
+          - text: "04. 3D & Neural Rendering"
+            href: docs/04-3d-rendering/index.qmd
+          - text: "05. Modern Trends"
+            href: docs/05-modern-trends/index.qmd
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    toc-title: "On this page"
+    code-fold: show
+    code-tools: true
+    code-copy: true
+    html-math-method: katex
+    smooth-scroll: true
+    mermaid:
+      theme: neutral
+
+bibliography: references.bib
+

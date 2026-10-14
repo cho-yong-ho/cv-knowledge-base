@@ -1,0 +1,108 @@
+/* Custom styling for CV Knowledge Base */
+
+/* Math rendering adjustments */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+  margin: 1rem 0;
+}
+
+/* Mermaid diagram styling */
+.cell-output-display .mermaid,
+pre.mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--bs-card-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--bs-border-color, rgba(128, 128, 128, 0.2));
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+/* Category grid cards on dashboard */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0 2.5rem 0;
+}
+
+.category-card {
+  border: 1px solid var(--bs-border-color, #e0e0e0);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  background: var(--bs-body-bg, #ffffff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+.category-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  border-color: var(--bs-primary, #0d6efd);
+}
+
+.category-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  background-color: var(--bs-primary-bg-subtle, #e7f1ff);
+  color: var(--bs-primary-text-emphasis, #0a58ca);
+  margin-bottom: 0.75rem;
+  width: fit-content;
+}
+
+.category-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.category-desc {
+  font-size: 0.9rem;
+  color: var(--bs-secondary-color, #6c757d);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.category-link-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--bs-primary, #0d6efd);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Hero section styling */
+.hero-banner {
+  padding: 2.5rem 1.5rem;
+  margin-bottom: 2rem;
+  background: linear-gradient(135deg, rgba(13, 110, 253, 0.08) 0%, rgba(13, 202, 240, 0.08) 100%);
+  border-radius: 12px;
+  border: 1px solid var(--bs-border-color, rgba(13, 110, 253, 0.2));
+}
+
+.hero-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--bs-secondary-color, #555);
+  max-width: 800px;
+  line-height: 1.6;
+}
+

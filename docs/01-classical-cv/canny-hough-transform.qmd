@@ -1,0 +1,252 @@
+---
+title: "Canny Edge Detector와 Hough Transform: 고전 영상 기하학의 정점"
+subtitle: "노이즈 억제와 이력 임계값 기반의 최적 에지 검출 및 모수 공간 투표 메커니즘을 통한 기하학적 직선 추출 심층 분석"
+date: "2026-10-15"
+categories: ["Classical CV", "Feature Extraction"]
+tags: ["Canny", "Hough Transform", "Edge Detection", "Line Detection", "PAMI 1986"]
+bibliography: ../../references.bib
+format:
+  html:
+    toc: true
+    code-fold: true
+---
+
+## 1. Overview & TL;DR
+
+::: {.callout-note}
+### 핵심 요약 (TL;DR)
+**해결하고자 한 핵심 문제:** 단순 공간 미분 필터(Sobel, Prewitt)는 고주파 노이즈에 취약하여 가짜 에지(False Positive)를 다수 생성하고, 검출된 에지 선폭이 두꺼워 정밀한 위치 측위가 어려웠습니다. 또한 분절된 에지 픽셀들로부터 전역적인 직선이나 원과 같은 기하학적 프리미티브를 자동으로 그룹화하는 데 한계가 있었습니다.
+
+**핵심 기여 (Core Contributions):**
+1. **Mathematical Optimality Criteria:** John Canny는 에지 검출을 (1) 낮은 오류율(Low Error Rate), (2) 우수한 위치 정확도(Good Localization), (3) 단일 응답 제약(Single Edge Response)이라는 세 가지 수학적 최적화 기준으로 정의하고 필터를 유도했습니다 [@canny1986computational].
+2. **Multi-Stage Refinement Pipeline:** 가우시안 평활화, 그래디언트 벡터 연산, 비최대 억제(Non-Maximum Suppression, NMS), 이력 임계값(Hysteresis Thresholding)으로 이어지는 4단계 정제 파이프라인을 정립했습니다.
+3. **Dual Parameter Space Voting (Hough Transform):** Duda & Hart [@duda1972use]의 정규 극좌표 표현 $\rho = x \cos \theta + y \sin \theta$을 도입하여, 기울기가 무한대인 수직선 문제를 해결하고 잡음과 가림(Occlusion)에 강건한 누적 배열(Accumulator) 기반 투표 메커니즘을 구현했습니다.
+:::
+
+## 2. Historical Context (등장 배경)
+
+초기 컴퓨터비전에서 경계선 검출은 영상의 밝기 불연속점(Intensity Discontinuity)을 포착하기 위해 국소 1차 미분(First-order Derivative) 연산자(Roberts Cross, Prewitt, Sobel)나 2차 미분 연산자인 마르-힐드레스(Marr-Hildreth)의 LoG(Laplacian of Gaussian) 제로 크로싱(Zero-crossing)에 의존했습니다.
+
+그러나 1차 미분 기반 연산자는 노이즈에 매우 취약하며 단일 임계값(Thresholding)을 적용할 때 임계값 설정에 따라 경계선이 끊어지거나 노이즈가 과도하게 검출되는 딜레마가 발생했습니다. 또한 LoG 연산자는 닫힌 루프(Closed Loops)를 형성하는 경향이 있어 모서리(Corner)나 곡률이 큰 영역에서 에지 위치가 왜곡되는 문제가 존재했습니다.
+
+Canny [@canny1986computational]는 노이즈가 포함된 1차원 계단형 에지(Step Edge) 모델에 대해 변분법(Calculus of Variations)을 적용하여 신호 대 잡음비(SNR)와 국소화 척도를 최대화하는 최적 필터를 이론적으로 도출하였으며, 이것이 가우시안의 1차 도함수(First Derivative of Gaussian)와 매우 유사함을 입증했습니다.
+
+동시에 이렇게 추출된 단편적인 에지 픽셀($x_i, y_i$)들을 전역적 기하 도형으로 조립하기 위해 Paul Hough의 특허(1962)와 Duda & Hart [@duda1972use]의 극좌표 모수화가 결합된 **Hough Transform**이 결측 및 노이즈 환경에서의 기하학적 도형 추출 표준으로 자리 잡았습니다.
+
+## 3. Architecture & Pipeline
+
+입력 단일 채널 영상 $\mathbf{I} \in \mathbb{R}^{H \times W}$로부터 최종 정량적 직선 파라미터 $(\rho_k, \theta_k)$가 도출되는 전체 파이프라인은 다음과 같이 시각화할 수 있습니다.
+
+```{mermaid}
+flowchart TD
+    subgraph Canny Pipeline
+        Input["Grayscale Image<br/>I ∈ R^(H x W)"] --> Gauss["Gaussian Smoothing<br/>G_σ * I"]
+        Gauss --> Grad["Spatial Gradient & Orientation<br/>(G_x, G_y) → |∇I|, θ"]
+        Grad --> NMS["Non-Maximum Suppression (NMS)<br/>Thinning along gradient direction"]
+        NMS --> Hyst["Hysteresis Thresholding<br/>T_high & T_low + 8-connectivity Edge Tracking"]
+        Hyst --> EdgeMap["Binary Edge Map<br/>E ∈ {0, 1}^(H x W)"]
+    end
+    
+    subgraph Hough Transform Pipeline
+        EdgeMap --> Collect["Collect Non-Zero Edge Pixels<br/>{(x_i, y_i) | E(x_i, y_i) = 1}"]
+        Collect --> PolarVoting["Polar Parameter Mapping<br/>ρ = x_i cos θ + y_i sin θ for θ ∈ [0, π)"]
+        PolarVoting --> Accumulator["Accumulator Array<br/>A(ρ, θ) Accumulation"]
+        Accumulator --> PeakDetect["Local Peak Detection & Thresholding<br/>Find (ρ_k, θ_k) with High Votes"]
+        PeakDetect --> OutputLines["Parametric Detected Lines<br/>{(ρ_k, θ_k)}"]
+    end
+```
+
+* **Step 1 (가우시안 평활화):** 고주파 노이즈를 억제하기 위해 가우시안 커널 $G_\sigma$와 2D 컨볼루션을 수행합니다.
+* **Step 2 (기울기 및 방향 계산):** Sobel 커널을 사용하여 수평($G_x$) 및 수직($G_y$) 기울기를 연산하고 그래디언트의 크기와 위상을 구합니다.
+* **Step 3 (비최대 억제 - NMS):** 그래디언트 방향을 $0^\circ, 45^\circ, 90^\circ, 135^\circ$의 4개 주방향으로 양자화한 뒤, 국소 최대값이 아닌 픽셀을 0으로 억제하여 1픽셀 너비의 얇은 에지를 얻습니다.
+* **Step 4 (이력 임계값 처리):** 두 개의 임계값($T_{\text{high}}, T_{\text{low}}$)을 두어 확실한 강한 에지(Strong Edge)를 우선 선택하고, 이와 8-연결성(8-connectivity)으로 연결된 약한 에지(Weak Edge)만을 최종 에지로 보존합니다.
+* **Step 5 (허프 변환 누적 투표):** 이진 에지 맵의 모든 활성 픽셀을 $(\rho, \theta)$ 정규 공간의 정현파(Sinusoid) 곡선으로 사상하여 2D 누적 배열 $A[\rho, \theta]$에 투표합니다.
+* **Step 6 (피크 검출):** 누적 배열에서 국소 극대점(Local Maxima)을 탐색하여 영상 내 유효한 직선들을 검출합니다.
+
+## 4. Mathematical Formulation (핵심 수식)
+
+### 4.1. 가우시안 스무딩 및 그래디언트 벡터
+
+2차원 등방성 가우시안 함수 $G_\sigma(x, y)$와 영상 $\mathbf{I}(x, y)$의 컨볼루션은 다음과 같이 정의됩니다.
+
+$$
+I_\sigma(x, y) = G_\sigma(x, y) * \mathbf{I}(x, y) = \frac{1}{2\pi\sigma^2}\exp\left(-\frac{x^2+y^2}{2\sigma^2}\right) * \mathbf{I}(x, y)
+$$
+
+* $\mathbf{I} \in \mathbb{R}^{H \times W}$: 입력 원본 그레이스케일 영상 행렬
+* $\sigma \in \mathbb{R}^+$: 가우시안 필터의 표준편차 (노이즈 평활화 강도 제어)
+* $I_\sigma \in \mathbb{R}^{H \times W}$: 노이즈가 제거된 스무딩 영상
+
+공간 도함수와 그래디언트 벡터 $\nabla I_\sigma$의 크기 $M(x, y)$ 및 방향각 $\alpha(x, y)$는 다음과 같습니다.
+
+$$
+G_x(x, y) = \frac{\partial I_\sigma}{\partial x}, \quad G_y(x, y) = \frac{\partial I_\sigma}{\partial y}
+$$
+
+$$
+M(x, y) = \|\nabla I_\sigma(x, y)\|_2 = \sqrt{G_x(x, y)^2 + G_y(x, y)^2}
+$$
+
+$$
+\alpha(x, y) = \operatorname{arctan2}\left(G_y(x, y), G_x(x, y)\right)
+$$
+
+* $G_x, G_y \in \mathbb{R}^{H \times W}$: $x$축 및 $y$축 방향의 편미분 반응값
+* $M(x, y) \in \mathbb{R}^+$: 픽셀 $(x, y)$에서의 밝기 변화율 크기 (Magnitude)
+* $\alpha(x, y) \in [-\pi, \pi]$: 그래디언트 벡터의 방향 (Direction)
+
+### 4.2. 비최대 억제 (Non-Maximum Suppression)
+
+그래디언트 방향 $\alpha(x, y)$에 수직인 방향이 실제 에지의 접선 방향입니다. NMS는 $\alpha(x, y)$ 벡터가 가리키는 전방 픽셀 $p_{\text{fwd}}$ 및 후방 픽셀 $p_{\text{bwd}}$와의 크기를 비교하여 다음과 같이 에지를 세선화(Thinning)합니다.
+
+$$
+M_{\text{NMS}}(x, y) = 
+\begin{cases} 
+M(x, y) & \text{if } M(x, y) \ge M(p_{\text{fwd}}) \text{ and } M(x, y) \ge M(p_{\text{bwd}}) \\ 
+0 & \text{otherwise} 
+\end{cases}
+$$
+
+* $M_{\text{NMS}} \in \mathbb{R}^{H \times W}$: 비최대치가 억제되어 선폭이 1픽셀로 줄어든 그래디언트 맵
+* $p_{\text{fwd}}, p_{\text{bwd}}$: 픽셀 $(x, y)$에서 $\alpha(x, y)$ 방향으로 양방향 이웃한 이산 픽셀 위치
+
+### 4.3. 이력 임계값 처리 (Hysteresis Thresholding)
+
+이력 임계값 기법은 두 개의 임계값 $T_{\text{high}} > T_{\text{low}}$를 사용하여 픽셀을 세 부류로 분류합니다.
+
+$$
+E(x, y) = 
+\begin{cases}
+1 & \text{if } M_{\text{NMS}}(x, y) \ge T_{\text{high}} \quad (\text{Strong Edge}) \\
+1 & \text{if } T_{\text{low}} \le M_{\text{NMS}}(x, y) < T_{\text{high}} \text{ and } (x, y) \in \mathcal{N}_8(\text{Strong Edge}) \quad (\text{Connected Weak}) \\
+0 & \text{otherwise} \quad (\text{Suppressed})
+\end{cases}
+$$
+
+* $T_{\text{high}}, T_{\text{low}} \in \mathbb{R}^+$: 상위 및 하위 그래디언트 임계값
+* $\mathcal{N}_8(p)$: 픽셀 $p$의 8-이웃 픽셀 집합
+* $E \in \{0, 1\}^{H \times W}$: 최종 이진 에지 맵
+
+### 4.4. Hough 극좌표 모수화 및 누적 투표
+
+직선의 직교 좌표 방정식 $y = mx + c$는 수직선($m \to \infty$)을 표현할 수 없으므로, Duda & Hart [@duda1972use]의 극좌표 정규형(Normal Form) 방정식을 사용합니다.
+
+$$
+\rho = x \cos \theta + y \sin \theta
+$$
+
+* $\rho \in [-\rho_{\max}, \rho_{\max}]$: 원점에서 직선까지의 유도 최단 거리 ($\rho_{\max} = \sqrt{H^2 + W^2}$)
+* $\theta \in [0, \pi)$: 원점에서 직선에 내린 수선의 법선 벡터 각도
+* $A[\rho_j, \theta_k] \in \mathbb{N}$: 이산화된 모수 공간(Accumulator Array)의 투표 카운트
+
+에지 픽셀 집합 $\mathcal{S} = \{(x_i, y_i) \mid E(x_i, y_i) = 1\}$에 대해 누적 배열은 다음과 같이 갱신됩니다.
+
+$$
+A[\rho, \theta] \leftarrow A[\rho, \theta] + 1 \quad \forall (x_i, y_i) \in \mathcal{S}, \; \theta \in [0, \pi) \text{ where } \rho = \operatorname{round}(x_i \cos \theta + y_i \sin \theta)
+$$
+
+## 5. PyTorch / Pseudo-code Implementation
+
+다음은 그래디언트 계산 이후의 비최대 억제(NMS)와 허프 누적 공간 투표를 순수 텐서 연산으로 구현한 PyTorch/Python 코드입니다.
+
+```python
+import torch
+import torch.nn.functional as F
+import math
+
+def non_maximum_suppression(magnitude: torch.Tensor, orientation: torch.Tensor) -> torch.Tensor:
+    """
+    그래디언트 크기와 각도 텐서에 대해 4개 양자화 방향(0, 45, 90, 135도) 기반 NMS를 수행합니다.
+    
+    Args:
+        magnitude: Shape (H, W), 그래디언트 크기 텐서
+        orientation: Shape (H, W), [-pi, pi] 범위의 그래디언트 방향각 (라디안)
+    Returns:
+        nms_mag: Shape (H, W), 국소 최대치만 보존된 그래디언트 텐서
+    """
+    H, W = magnitude.shape
+    # 각도를 [0, 180]도로 변환
+    angle = (orientation * 180.0 / math.pi) % 180.0
+    
+    # 8방향 이웃 패딩
+    padded = F.pad(magnitude.unsqueeze(0).unsqueeze(0), (1, 1, 1, 1), mode='constant', value=0).squeeze()
+    
+    # 이웃 픽셀 참조값 (상하, 좌우, 대각선)
+    val_c  = padded[1:-1, 1:-1]
+    val_e  = padded[1:-1, 2:]      # 0도 (수평) 우
+    val_w  = padded[1:-1, :-2]     # 0도 좌
+    val_ne = padded[:-2, 2:]       # 45도 우상
+    val_sw = padded[2:, :-2]       # 45도 좌하
+    val_n  = padded[:-2, 1:-1]     # 90도 (수직) 상
+    val_s  = padded[2:, 1:-1]      # 90도 하
+    val_nw = padded[:-2, :-2]      # 135도 좌상
+    val_se = padded[2:, 2:]        # 135도 우하
+    
+    mask = torch.zeros_like(magnitude, dtype=torch.bool)
+    
+    # 방향 1: 0도 (동-서)
+    m0 = ((angle < 22.5) | (angle >= 157.5)) & (val_c >= val_e) & (val_c >= val_w)
+    # 방향 2: 45도 (북동-남서)
+    m45 = (angle >= 22.5) & (angle < 67.5) & (val_c >= val_ne) & (val_c >= val_sw)
+    # 방향 3: 90도 (북-남)
+    m90 = (angle >= 67.5) & (angle < 112.5) & (val_c >= val_n) & (val_c >= val_s)
+    # 방향 4: 135도 (북서-남동)
+    m135 = (angle >= 112.5) & (angle < 157.5) & (val_c >= val_nw) & (val_c >= val_se)
+    
+    mask = m0 | m45 | m90 | m135
+    return torch.where(mask, magnitude, torch.zeros_like(magnitude))
+
+def hough_transform_lines(edge_map: torch.Tensor, rho_res: float = 1.0, theta_res: float = math.pi / 180.0) -> torch.Tensor:
+    """
+    이진 에지 맵으로부터 (rho, theta) 허프 공간 누적 배열(Accumulator)을 계산합니다.
+    """
+    H, W = edge_map.shape
+    device = edge_map.device
+    
+    diag_len = math.ceil(math.sqrt(H**2 + W**2))
+    num_rhos = int(2 * diag_len / rho_res) + 1
+    num_thetas = int(math.pi / theta_res)
+    
+    thetas = torch.linspace(0, math.pi, steps=num_thetas, device=device)
+    cos_t = torch.cos(thetas)
+    sin_t = torch.sin(thetas)
+    
+    # 에지 픽셀 좌표 추출 (N, 2)
+    y_idx, x_idx = torch.nonzero(edge_map, as_tuple=True)
+    if len(x_idx) == 0:
+        return torch.zeros((num_rhos, num_thetas), device=device)
+    
+    # (N, num_thetas) 연산: rho = x * cos(theta) + y * sin(theta)
+    rhos = x_idx.unsqueeze(1) * cos_t.unsqueeze(0) + y_idx.unsqueeze(1) * sin_t.unsqueeze(0)
+    rho_indices = torch.round((rhos + diag_len) / rho_res).long()
+    
+    # 누적 투표 수행 (bincount 활용)
+    theta_indices = torch.arange(num_thetas, device=device).unsqueeze(0).expand(len(x_idx), -1)
+    flat_indices = rho_indices * num_thetas + theta_indices
+    
+    accumulator = torch.bincount(flat_indices.reshape(-1), minlength=num_rhos * num_thetas)
+    return accumulator.reshape(num_rhos, num_thetas)
+```
+
+## 6. Comparison & Limitations
+
+### 6.1. 고전 및 딥러닝 에지/선분 검출 기법 비교
+
+| 검출 기법 | 수치적 복잡도 | 노이즈 강건성 | 에지 연속성 | 폐색(Occlusion) 처리 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sobel / Prewitt** | $O(HW)$ | 매우 취약 (고주파 잡음 민감) | 낮음 (임계값 단절 빈번) | 불가능 |
+| **LoG (Marr-Hildreth)** | $O(HW)$ | 중간 (가우시안 필터링) | 보통 (가짜 제로 크로싱 루프) | 불가능 |
+| **Canny Edge (Ours)** [@canny1986computational] | $O(HW)$ | **우수 (가우시안 + 이력 임계값)** | **높음 (8-연결 추적)** | 국소 결측 허용 |
+| **Standard Hough (Ours)** [@duda1972use] | $O(N \cdot N_\theta)$ | **매우 높음 (모수 공간 투표)** | 완전 결합 (전역 직선 복원) | **완벽 복원 (단절 무관)** |
+| **LSD (Line Segment Detector)** | $O(HW)$ | 높음 (헬름홀츠 NFA 원리) | 매우 높음 (선분 단위 검출) | 보통 (선분 단절 발생) |
+| **Deep Edge (HED, DexiNed)** | $O(C \cdot HW)$ (GPU) | 최상 (의미론적 에지 포착) | 최상 (다중 스케일 융합) | 최상 (문맥 이해) |
+
+### 6.2. 고전 기법의 병목 현상 및 한계점
+
+1. **하이퍼파라미터의 민감성:** Canny의 가우시안 표준편차 $\sigma$, 상하한 임계값 ($T_{\text{high}}, T_{\text{low}}$)은 영상의 조명, 대비, 노이즈 레벨에 따라 수동 튜닝이 필수적이며, 동적 환경에서 일반화 성능이 저하됩니다.
+2. **모수 공간의 차원 폭증(Curse of Dimensionality):** Hough Transform은 직선(2차원)이나 원(3차원: 중심 $a, b$, 반지름 $r$) 검출에는 적합하나, 타원(5차원)이나 임의의 3D 형태 검출 시 메모리와 연산량이 지수 함수적으로 폭증($O(N \cdot K^d)$)합니다.
+3. **선분의 종점(End-point) 정보 부재:** 표준 허프 변환은 직선의 $(\rho, \theta)$ 파라미터만 도출할 뿐, 해당 직선이 영상의 어느 픽셀에서 시작하여 어디서 끝나는지(Line Segment Endpoints) 파악하기 위해 추가적인 사후 투영 검증이 요구됩니다.
+
+## References
+::: {#refs}
+:::

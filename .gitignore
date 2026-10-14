@@ -1,0 +1,39 @@
+# Quarto outputs & internal cache
+_site/
+.quarto/
+
+# Python & Environment management
+agent/.venv/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Sensitive environment variables & API keys (Strictly enforced by AGENTS.md)
+.env
+.env.*
+!.env.example
+
+# Operating System & IDE metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary scratch directories
+tmp/
+scratch/
+
+/.quarto/
+**/*.quarto_ipynb

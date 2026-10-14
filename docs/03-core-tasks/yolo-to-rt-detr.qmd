@@ -1,0 +1,215 @@
+---
+title: "실시간 객체 검출의 진화: YOLO 시리즈부터 RT-DETR까지"
+subtitle: "단일 단계 검출기의 발전 흐름과 NMS의 한계를 극복한 실시간 엔드투엔드 비전 트랜스포머 아키텍처 심층 분석"
+date: "2026-10-15"
+categories: ["Core Tasks", "Object Detection"]
+tags: ["Object Detection", "YOLO", "DETR", "RT-DETR", "Real-time", "Deformable Attention"]
+bibliography: ../../references.bib
+format:
+  html:
+    toc: true
+    code-fold: true
+---
+
+## 1. Overview & TL;DR
+
+::: {.callout-note}
+### 핵심 요약 (TL;DR)
+**해결하고자 한 핵심 문제:** 고전 단일 단계 검출기(YOLOv1~v8)는 뛰어난 속도와 정확도를 제공했으나, 추론 파이프라인 마지막에 위치한 **비최대 억제(Non-Maximum Suppression, NMS)** 단계로 인해 추론 지연 시간(Latency)이 이미지 내 객체 밀도에 따라 크게 변동되고 엔드투엔드 미분 가능 최적화가 불가능했습니다. 반면 초기 트랜스포머 기반 DETR [@carion2020end]은 NMS를 제거했으나 연산 비용이 과도하여 실시간 배포가 불가능했습니다.
+
+**핵심 기여 (Core Contributions):**
+1. **YOLO 패러다임 발전사 정리:** 그리드 기반 단일 회귀(YOLOv1 [@redmon2016you]) $\to$ 앵커 박스 및 다중 스케일(YOLOv2/v3) $\to$ CSPNet 및 PANet 융합(YOLOv4/v5/v7) $\to$ 앵커 프리(Anchor-Free) 및 분리 헤드(Decoupled Head, YOLOv8)의 핵심 아키텍처 진화 분석.
+2. **NMS 병목 분석:** NMS의 $O(N^2)$ 연산 병목, 하이퍼파라미터(IoU Threshold) 민감도, 겹친 객체(Occluded Objects)의 거짓 음성(False Negative) 유발 문제를 규명.
+3. **RT-DETR (Real-Time DETR) 아키텍처 분석:** 고주파 시각 특징에만 트랜스포머 어텐션을 적용하는 효율적인 하이브리드 인코더(Efficient Hybrid Encoder)와 불확실성 최소화 쿼리 선택(Uncertainty-minimal Query Selection)을 통해 NMS 없이도 최신 YOLO보다 우수한 속도와 정확도를 달성한 원리 규명 [@zhao2024detrs].
+:::
+
+## 2. Historical Context (등장 배경)
+
+딥러닝 기반 객체 검출(Object Detection)은 영역 제안(Region Proposal)과 분류를 순차 수행하는 2단계(Two-stage) 방식(R-CNN, Fast/Faster R-CNN)으로 정밀도를 높여왔습니다. 그러나 복잡한 파이프라인으로 인해 초당 수십 프레임(FPS)의 실시간 추론이 요구되는 엣지 디바이스나 자율주행 환경에는 적합하지 않았습니다.
+
+Joseph Redmon et al. [@redmon2016you]은 영상을 $S \times S$ 격자로 나누고 단일 신경망 순전파만으로 경계 상자(Bounding Box)와 클래스 확률을 동시에 회귀하는 **YOLO(You Only Look Once)**를 제안하여 실시간 비전의 시대를 열었습니다. 이후 YOLO 시리즈는 수많은 산업계와 학계의 개선을 거치며 특징 피라미드 네트워크(FPN/PANet), 패스 어그리게이션, 모자이크 증강(Mosaic Augmentation) 등을 집대성한 SOTA 실시간 검출기로 군림했습니다.
+
+그러나 YOLO를 포함한 모든 전통 검출기는 하나의 객체에 대해 수천~수만 개의 후보 상자를 조밀하게 생성(Dense Prediction)하므로, 중복된 상자를 제거하는 비최대 억제(NMS) 후처리가 필수적이었습니다. NMS는 하이퍼파라미터(IoU 임계값)에 매우 민감하며 병렬화가 까다로워 GPU와 CPU 사이의 데이터 전송 병목을 초래합니다.
+
+2020년 제안된 **DETR** [@carion2020end]은 객체 검출을 집합 예측(Direct Set Prediction) 문제로 재정의하고 이분 매칭(Bipartite Matching)을 통해 NMS를 마침내 배제했으나, 글로벌 셀프 어텐션의 극심한 연산량과 느린 수렴 속도로 인해 실시간 적용이 요원했습니다. 이에 Zhao et al. [@zhao2024detrs]은 하이브리드 인코더와 쿼리 선택 최적화를 결합한 **RT-DETR**을 발표하여, 비전 트랜스포머로도 실시간 환경에서 YOLO를 능가할 수 있음을 입증했습니다.
+
+## 3. Architecture & Pipeline
+
+전통적 YOLO 계열과 차세대 실시간 트랜스포머인 RT-DETR의 구조적 차이와 데이터 흐름은 다음과 같습니다.
+
+```{mermaid}
+flowchart TD
+    subgraph Traditional YOLO Pipeline
+        InY["Input Image<br/>I ∈ R^(H x W x 3)"] --> BB_Y["Backbone (CSPDarknet)<br/>Multi-scale {P3, P4, P5}"]
+        BB_Y --> Neck_Y["Neck (PAFPN)<br/>Top-down & Bottom-up"]
+        Neck_Y --> Head_Y["Dense Decoupled Head<br/>Anchor / Anchor-Free Points"]
+        Head_Y --> Pred_Y["Dense BBoxes (~8400 boxes)<br/>with Conf & Class scores"]
+        Pred_Y --> NMS["Non-Maximum Suppression (NMS)<br/>Sequential IoU Suppression (Bottleneck!)"]
+        NMS --> Out_Y["Final Detections"]
+    end
+
+    subgraph RT-DETR Pipeline (NMS-Free)
+        InD["Input Image<br/>I ∈ R^(H x W x 3)"] --> BB_D["Backbone (ResNet / HGNetv2)<br/>Multi-scale {S3, S4, S5}"]
+        BB_D --> Enc["Efficient Hybrid Encoder<br/>AIFI (Attn on S5) + CCFM (CNN on S3-S5)"]
+        Enc --> QuerySel["Uncertainty-Minimal Query Selection<br/>Select Top-K Query Positional Priors"]
+        QuerySel --> Dec["Transformer Decoder<br/>Cross-Attention with Multi-Scale Feats"]
+        Dec --> Out_D["Direct Set Predictions (K=300)<br/>Pure End-to-End (No NMS Needed!)"]
+    end
+```
+
+* **YOLO 파이프라인:** 이미지를 축소하며 추출된 다중 스케일 피처 맵($P_3, P_4, P_5$)을 PAFPN으로 양방향 결합하고, 격자점마다 수천 개의 후보 상자를 쏟아낸 뒤 NMS 알고리즘을 거쳐 겹친 상자를 직렬 제거합니다.
+* **RT-DETR 파이프라인:** 
+  1. 최고 레벨 고의미론적 피처($S_5$)에만 단일 스케일 인트라 어텐션(AIFI)을 적용하여 계산 복잡도를 대폭 낮춥니다.
+  2. CNN 기반의 교차 스케일 융합 모듈(CCFM)로 멀티스케일 피처를 결합합니다.
+  3. 불확실성 최소화 쿼리 선택 모듈이 분류와 위치 국소화 신뢰도가 모두 높은 $K=300$개의 객체 쿼리를 선별합니다.
+  4. 트랜스포머 디코더에서 상호 주의집중(Cross-Attention)을 통해 $K$개의 최종 바운딩 박스를 직접 출력합니다.
+
+## 4. Mathematical Formulation (핵심 수식)
+
+### 4.1. 바운딩 박스 회귀 손실: Complete IoU (CIoU)
+
+YOLO 계열에서 표준적으로 채택되는 CIoU 손실은 겹침 영역(IoU), 중심점 간 거리, 가로세로 종횡비(Aspect Ratio) 일치도를 모두 고려합니다.
+
+$$
+\mathcal{L}_{\text{CIoU}} = 1 - \text{IoU} + \frac{\rho^2(\mathbf{b}, \mathbf{b}^{\text{gt}})}{c^2} + \alpha v
+$$
+
+* $\mathbf{b} = [x, y, w, h]^T \in \mathbb{R}^4$: 모델이 예측한 경계 상자 좌표 및 크기
+* $\mathbf{b}^{\text{gt}} = [x^{\text{gt}}, y^{\text{gt}}, w^{\text{gt}}, h^{\text{gt}}]^T \in \mathbb{R}^4$: 실제 정답(Ground Truth) 경계 상자
+* $\rho(\mathbf{b}, \mathbf{b}^{\text{gt}}) = \|\mathbf{b}_{c} - \mathbf{b}^{\text{gt}}_{c}\|_2$: 두 상자의 중심점 사이의 유클리드 거리
+* $c \in \mathbb{R}^+$: 두 상자를 동시에 포함하는 최소 외접 직사각형(Smallest Enclosing Box)의 대각선 길이
+* $v = \frac{4}{\pi^2} \left( \arctan\frac{w^{\text{gt}}}{h^{\text{gt}}} - \arctan\frac{w}{h} \right)^2$: 종횡비의 상대적 일치도를 측정하는 척도
+* $\alpha = \frac{v}{(1 - \text{IoU}) + v}$: 중첩도에 따라 종횡비 페널티를 조절하는 동적 가중치 파라미터
+
+### 4.2. 이분 매칭 손실 (Hungarian Bipartite Matching)
+
+DETR 및 RT-DETR은 NMS 없이 예측 상자와 정답 상자를 $1:1$로 매칭하기 위해 헝가리안 알고리즘(Hungarian Algorithm)을 사용합니다 [@carion2020end]. 정답 집합 $y = \{(c_i, b_i)\}_{i=1}^N$ (패딩된 빈 객체 $\varnothing$ 포함)과 $N$개의 예측값 $\hat{y} = \{(\hat{p}_i, \hat{b}_i)\}_{i=1}^N$ 사이의 최적 순열 $\hat{\sigma} \in \mathfrak{S}_N$은 다음 비용 함수를 최소화하여 탐색됩니다.
+
+$$
+\hat{\sigma} = \arg\min_{\sigma \in \mathfrak{S}_N} \sum_{i=1}^N \mathcal{L}_{\text{match}}(y_i, \hat{y}_{\sigma(i)})
+$$
+
+매칭 비용 함수 $\mathcal{L}_{\text{match}}$와 최종 헝가리안 훈련 손실 함수 $\mathcal{L}_{\text{Hungarian}}$은 다음과 같이 정의됩니다.
+
+$$
+\mathcal{L}_{\text{match}}(y_i, \hat{y}_{\sigma(i)}) = - \hat{p}_{\sigma(i)}(c_i) + \mathcal{L}_{\text{box}}(b_i, \hat{b}_{\sigma(i)})
+$$
+
+$$
+\mathcal{L}_{\text{Hungarian}}(y, \hat{y}) = \sum_{i=1}^N \left[ -\log \hat{p}_{\hat{\sigma}(i)}(c_i) + \mathbb{I}_{\{c_i \neq \varnothing\}} \left( \lambda_{\text{L1}} \|b_i - \hat{b}_{\hat{\sigma}(i)}\|_1 + \lambda_{\text{giou}} \mathcal{L}_{\text{GIoU}}(b_i, \hat{b}_{\hat{\sigma}(i)}) \right) \right]
+$$
+
+* $c_i \in \{1, \dots, C, \varnothing\}$: $i$번째 실제 객체의 클래스 라벨
+* $\hat{p}_{\sigma(i)}(c_i) \in [0, 1]$: $\sigma(i)$번째 모델 예측이 클래스 $c_i$일 예측 확률
+* $b_i, \hat{b} \in [0, 1]^4$: 정규화된 경계 상자 좌표 $[x_{\text{center}}, y_{\text{center}}, w, h]$
+* $\mathbb{I}_{\{\cdot\}}$: 조건이 참일 때 1, 거짓일 때 0을 반환하는 지시 함수(Indicator Function)
+* $\lambda_{\text{L1}}, \lambda_{\text{giou}} \in \mathbb{R}^+$: 박스 회귀 손실 간의 균형 계수
+
+### 4.3. RT-DETR의 변형 가능한 상호 주의집중 (Deformable Attention)
+
+다중 스케일 특징 맵 $x \in \mathbb{R}^{C \times H \times W}$에 대해 디코더 쿼리 $z_q$가 참조점(Reference Point) $\hat{p}_q$ 주변의 $K$개 샘플링 지점만을 적응적으로 참조하는 연산입니다.
+
+$$
+\operatorname{DeformAttn}(z_q, \hat{p}_q, x) = \sum_{m=1}^M \mathbf{W}_m \left[ \sum_{k=1}^K A_{mqk} \cdot \mathbf{W}'_m x(\hat{p}_q + \Delta p_{mqk}) \right]
+$$
+
+* $M \in \mathbb{N}$: 어텐션 헤드(Head)의 개수
+* $K \in \mathbb{N}$: 헤드당 국소 샘플링 키(Key) 포인트 개수 (일반적으로 $K=4$)
+* $\Delta p_{mqk} \in \mathbb{R}^2$: 쿼리 특징 $z_q$로부터 선형 투영되어 추론된 2D 샘플링 오프셋 벡터
+* $A_{mqk} \in [0, 1]$: $\sum_{k=1}^K A_{mqk} = 1$을 만족하는 소프트맥스 어텐션 가중치
+* $\mathbf{W}_m, \mathbf{W}'_m \in \mathbb{R}^{\frac{C}{M} \times C}$: 입력 및 출력 선형 가중치 프로젝션 행렬
+
+## 5. PyTorch / Pseudo-code Implementation
+
+다음은 객체 검출 후처리에서 병목이 되는 전통적 NMS와, 이를 완벽히 대체하는 헝가리안 이분 매칭 할당기의 핵심 PyTorch 구현 코드입니다.
+
+```python
+import torch
+import torch.nn as nn
+from torchvision.ops import boxes as box_ops
+from scipy.optimize import linear_sum_assignment
+
+class HungarianMatcher(nn.Module):
+    """
+    DETR / RT-DETR을 위한 헝가리안 이분 매칭 (Bipartite Matching) 모듈
+    모델 예측 집합과 정답 집합 사이의 최적 1:1 매핑 순열을 연산합니다.
+    """
+    def __init__(self, cost_class: float = 1.0, cost_bbox: float = 5.0, cost_giou: float = 2.0):
+        super().__init__()
+        self.cost_class = cost_class
+        self.cost_bbox = cost_bbox
+        self.cost_giou = cost_giou
+
+    @torch.no_grad()
+    def forward(self, pred_logits: torch.Tensor, pred_boxes: torch.Tensor, targets: list[dict[str, torch.Tensor]]) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Args:
+            pred_logits: Shape (Batch, Num_Queries, Num_Classes)
+            pred_boxes:  Shape (Batch, Num_Queries, 4) 정규화된 cx, cy, w, h
+            targets:     길이 Batch의 딕셔너리 리스트 [ {'labels': (N,), 'boxes': (N, 4)} ]
+        Returns:
+            indices: 리스트 [(pred_idx, target_idx), ...] 배치별 최적 매칭 쌍
+        """
+        bs, num_queries = pred_logits.shape[:2]
+        out_prob = pred_logits.flatten(0, 1).sigmoid()
+        out_bbox = pred_boxes.flatten(0, 1)
+
+        # 배치 전체의 정답 텐서 병합
+        tgt_ids = torch.cat([v["labels"] for v in targets])
+        tgt_bbox = torch.cat([v["boxes"] for v in targets])
+
+        if len(tgt_ids) == 0:
+            return [(torch.empty(0, dtype=torch.int64), torch.empty(0, dtype=torch.int64)) for _ in range(bs)]
+
+        # 1. 분류 비용: Focal Loss 기반 비용 근사
+        cost_class = -out_prob[:, tgt_ids]
+
+        # 2. L1 박스 거리 비용
+        cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
+
+        # 3. GIoU 비용 계산
+        cost_giou = -box_ops.generalized_box_iou(
+            box_ops.box_cxcywh_to_xyxy(out_bbox),
+            box_ops.box_cxcywh_to_xyxy(tgt_bbox)
+        )
+
+        # 최종 가중합 비용 행렬 (Total Cost Matrix)
+        C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
+        C = C.view(bs, num_queries, -1).cpu()
+
+        # scipy 선형 할당 문제 (Hungarian Algorithm) 해결
+        sizes = [len(v["boxes"]) for v in targets]
+        indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+        
+        return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+
+def run_batched_nms(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold: float = 0.65) -> torch.Tensor:
+    """
+    YOLO 계열에서 최종 상자 선별 시 사용하는 전형적인 NMS 함수
+    """
+    keep_indices = box_ops.nms(boxes, scores, iou_threshold)
+    return keep_indices
+```
+
+## 6. Comparison & Limitations
+
+### 6.1. YOLO 시리즈와 RT-DETR 모델군 종합 비교
+
+| 모델 | 백본 아키텍처 | NMS 의존 여부 | COCO mAP$^{val}$ (640) | T4 GPU 추론 속도 (ms) | 학습 수렴 속도 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **YOLOv5-L** | CSPDarknet | 필수 ($\sim 2\text{--}8\text{ ms}$) | $49.0\%$ | $8.2\text{ ms}$ | 빠름 (300 epochs) |
+| **YOLOv7-X** [@wang2023yolov7] | Extended-ELAN | 필수 ($\sim 2\text{--}8\text{ ms}$) | $53.1\%$ | $11.4\text{ ms}$ | 빠름 (300 epochs) |
+| **YOLOv8-X** | C2f + Decoupled Head | 필수 ($\sim 2\text{--}8\text{ ms}$) | $53.9\%$ | $12.1\text{ ms}$ | 빠름 (500 epochs) |
+| **Vanilla DETR** [@carion2020end] | ResNet-50 + Trans. | **NMS-Free** | $42.0\%$ | $36.0\text{ ms}$ (느림) | 매우 느림 (500 epochs) |
+| **Deformable DETR** | ResNet-50 + Def. Attn | **NMS-Free** | $46.9\%$ | $19.0\text{ ms}$ | 보통 (50 epochs) |
+| **RT-DETR-X (Ours)** [@zhao2024detrs] | HGNetv2-H + Hybrid Enc | **NMS-Free** | **$54.8\%$** | **$10.5\text{ ms}$** | **빠름 (72 epochs)** |
+
+### 6.2. 현재 기법의 병목 현상 및 한계점
+
+1. **임베디드 NPU/DSP 전용 가속기 호환성:** YOLO의 합성곱(Conv-BN-SiLU) 블록은 거의 모든 엣지 실리콘(Qualcomm, Hailo, Rockchip)에서 최적 하드웨어 가속이 보장되는 반면, RT-DETR의 변형 가능한 어텐션(Deformable Attention) 연산자는 일부 저가형 NPU에서 커스텀 오퍼레이터(Custom Operator) 미지원으로 인해 CPU 폴백(Fallback)이 발생할 수 있습니다.
+2. **소형 객체(Small Object) 해상도 의존성:** 고해상도 입력($1280 \times 1280$ 이상) 환경에서 트랜스포머 인코더는 연산량 및 활성화 메모리(Activation Memory)가 급증하므로, 초고해상도 위성 영상이나 극소형 결함 검출 시에는 여전히 타일링 기법(SAHI)이나 경량 CNN FPN 구조가 유리할 수 있습니다.
+3. **사전 학습 의존성:** RT-DETR은 레이블이 부족한 소규모 커스텀 데이터셋(Few-shot 또는 수백 장 수준)을 학습할 때, COCO 대규모 데이터셋으로 사전 훈련된 가중치(Pretrained Weights)가 없으면 바운딩 박스 쿼리의 기하학적 수렴이 다소 지연될 수 있습니다.
+
+## References
+::: {#refs}
+:::

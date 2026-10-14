@@ -1,0 +1,28 @@
+---
+title: "04. 3D Vision & Neural Rendering"
+subtitle: "3차원 공간 복원, 신경 방사 휘도장 및 실시간 래스터라이제이션"
+listing:
+  contents:
+    - "*.qmd"
+    - "!index.qmd"
+  type: default
+  sort: "date desc"
+  categories: true
+  sort-ui: true
+  filter-ui: true
+  fields: [date, title, subtitle, categories, reading-time]
+---
+
+::: {.callout-note}
+## Category Overview & Scope
+다양한 시점의 2차원 관측 이미지들로부터 사실적인 3차원 세상을 복원하고 렌더링하는 기법들을 다룹니다.
+
+* **Neural Radiance Fields (NeRF):** Implicit Volume Rendering, Positional Encoding, Instant-NGP, Mip-NeRF 360
+* **3D Gaussian Splatting (3DGS):** Explicit 3D Gaussian Primitive, Differentiable Tile Rasterizer, Densification & Pruning
+* **Visual SLAM & SfM:** Structure-from-Motion (COLMAP), Visual Odometry, Neural SLAM, Gaussian SLAM
+* **Point Cloud & Mesh:** PointNet, PointNet++, Mesh Reconstruction, TSDF Fusion
+:::
+
+## Document List
+아래 목록은 이 카테고리에 등록된 기술 문서 및 논문 분석입니다.
+
