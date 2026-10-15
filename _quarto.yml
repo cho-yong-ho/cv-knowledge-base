@@ -4,6 +4,7 @@ project:
 
 website:
   title: "CV Knowledge Base"
+  site-url: "https://cho-yong-ho.github.io/cv-knowledge-base"
   description: "컴퓨터비전 고전 알고리즘부터 최신 트렌드까지 체계적으로 정리하는 기술 위키 & 자율형 연구 에이전트"
   
   search:
@@ -30,7 +31,7 @@ website:
             href: docs/05-modern-trends/index.qmd
     right:
       - icon: github
-        href: https://github.com/
+        href: https://github.com/cho-yong-ho/cv-knowledge-base
 
   sidebar:
     style: "docked"
