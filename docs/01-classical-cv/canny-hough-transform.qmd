@@ -39,20 +39,20 @@ Canny [@canny1986computational]는 노이즈가 포함된 1차원 계단형 에�
 
 ```{mermaid}
 flowchart TD
-    subgraph Canny Pipeline
-        Input["Grayscale Image<br/>I ∈ R^(H x W)"] --> Gauss["Gaussian Smoothing<br/>G_σ * I"]
-        Gauss --> Grad["Spatial Gradient & Orientation<br/>(G_x, G_y) → |∇I|, θ"]
+    subgraph Canny["Canny Edge Detection Pipeline"]
+        Input["Grayscale Image<br/>I in R^(H x W)"] --> Gauss["Gaussian Smoothing<br/>G * I"]
+        Gauss --> Grad["Spatial Gradient & Orientation<br/>(Gx, Gy) to Magnitude & Theta"]
         Grad --> NMS["Non-Maximum Suppression (NMS)<br/>Thinning along gradient direction"]
-        NMS --> Hyst["Hysteresis Thresholding<br/>T_high & T_low + 8-connectivity Edge Tracking"]
-        Hyst --> EdgeMap["Binary Edge Map<br/>E ∈ {0, 1}^(H x W)"]
+        NMS --> Hyst["Hysteresis Thresholding<br/>T_high & T_low with 8-connectivity"]
+        Hyst --> EdgeMap["Binary Edge Map<br/>E in 0, 1 grid"]
     end
     
-    subgraph Hough Transform Pipeline
-        EdgeMap --> Collect["Collect Non-Zero Edge Pixels<br/>{(x_i, y_i) | E(x_i, y_i) = 1}"]
-        Collect --> PolarVoting["Polar Parameter Mapping<br/>ρ = x_i cos θ + y_i sin θ for θ ∈ [0, π)"]
-        PolarVoting --> Accumulator["Accumulator Array<br/>A(ρ, θ) Accumulation"]
-        Accumulator --> PeakDetect["Local Peak Detection & Thresholding<br/>Find (ρ_k, θ_k) with High Votes"]
-        PeakDetect --> OutputLines["Parametric Detected Lines<br/>{(ρ_k, θ_k)}"]
+    subgraph Hough["Hough Transform Pipeline"]
+        EdgeMap --> Collect["Collect Non-Zero Edge Pixels<br/>Active Coordinate List (x_i, y_i)"]
+        Collect --> PolarVoting["Polar Parameter Mapping<br/>rho = x cos theta + y sin theta"]
+        PolarVoting --> Accumulator["Accumulator Array<br/>A(rho, theta) Accumulation"]
+        Accumulator --> PeakDetect["Local Peak Detection & Thresholding<br/>Find (rho_k, theta_k) with High Votes"]
+        PeakDetect --> OutputLines["Parametric Detected Lines<br/>(rho_k, theta_k)"]
     end
 ```
 

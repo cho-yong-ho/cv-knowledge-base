@@ -39,21 +39,21 @@ Joseph Redmon et al. [@redmon2016you]은 영상을 $S \times S$ 격자로 나누
 
 ```{mermaid}
 flowchart TD
-    subgraph Traditional YOLO Pipeline
-        InY["Input Image<br/>I ∈ R^(H x W x 3)"] --> BB_Y["Backbone (CSPDarknet)<br/>Multi-scale {P3, P4, P5}"]
+    subgraph YOLO["Traditional YOLO Pipeline"]
+        InY["Input Image<br/>I in R^(H x W x 3)"] --> BB_Y["Backbone (CSPDarknet)<br/>Multi-scale Feature P3, P4, P5"]
         BB_Y --> Neck_Y["Neck (PAFPN)<br/>Top-down & Bottom-up"]
         Neck_Y --> Head_Y["Dense Decoupled Head<br/>Anchor / Anchor-Free Points"]
         Head_Y --> Pred_Y["Dense BBoxes (~8400 boxes)<br/>with Conf & Class scores"]
-        Pred_Y --> NMS["Non-Maximum Suppression (NMS)<br/>Sequential IoU Suppression (Bottleneck!)"]
+        Pred_Y --> NMS["Non-Maximum Suppression (NMS)<br/>Sequential IoU Suppression"]
         NMS --> Out_Y["Final Detections"]
     end
 
-    subgraph RT-DETR Pipeline (NMS-Free)
-        InD["Input Image<br/>I ∈ R^(H x W x 3)"] --> BB_D["Backbone (ResNet / HGNetv2)<br/>Multi-scale {S3, S4, S5}"]
-        BB_D --> Enc["Efficient Hybrid Encoder<br/>AIFI (Attn on S5) + CCFM (CNN on S3-S5)"]
+    subgraph RTDETR["RT-DETR Pipeline (NMS-Free)"]
+        InD["Input Image<br/>I in R^(H x W x 3)"] --> BB_D["Backbone (ResNet / HGNetv2)<br/>Multi-scale Feature S3, S4, S5"]
+        BB_D --> Enc["Efficient Hybrid Encoder<br/>AIFI on S5 + CCFM on S3-S5"]
         Enc --> QuerySel["Uncertainty-Minimal Query Selection<br/>Select Top-K Query Positional Priors"]
         QuerySel --> Dec["Transformer Decoder<br/>Cross-Attention with Multi-Scale Feats"]
-        Dec --> Out_D["Direct Set Predictions (K=300)<br/>Pure End-to-End (No NMS Needed!)"]
+        Dec --> Out_D["Direct Set Predictions (K=300)<br/>Pure End-to-End (No NMS)"]
     end
 ```
 

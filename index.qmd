@@ -106,17 +106,17 @@ $$
 
 ```{mermaid}
 flowchart LR
-    subgraph Data Acquisition
+    subgraph DA["Data Acquisition"]
         Img["Multi-view Images"] --> SfM["COLMAP SfM"]
         SfM --> Points["Point Cloud (Sparse)"]
     end
     
-    subgraph Autonomous Agent Pipeline
+    subgraph AP["Autonomous Agent Pipeline"]
         Fetcher["arXiv / HF Fetcher"] --> Writer["Gemini Writer (.qmd)"]
         Writer --> Publisher["Quarto Build & Deploy"]
     end
     
-    subgraph Knowledge Base
+    subgraph KB["Knowledge Base"]
         Points --> Render["3DGS / NeRF Wiki"]
         Publisher --> Render
     end
