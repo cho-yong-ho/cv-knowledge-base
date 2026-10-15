@@ -39,22 +39,31 @@ Joseph Redmon et al. [@redmon2016you]은 영상을 $S \times S$ 격자로 나누
 
 ```{mermaid}
 flowchart TD
-    subgraph YOLO["Traditional YOLO Pipeline"]
-        InY["Input Image<br/>I in R^(H x W x 3)"] --> BB_Y["Backbone (CSPDarknet)<br/>Multi-scale Feature P3, P4, P5"]
-        BB_Y --> Neck_Y["Neck (PAFPN)<br/>Top-down & Bottom-up"]
-        Neck_Y --> Head_Y["Dense Decoupled Head<br/>Anchor / Anchor-Free Points"]
-        Head_Y --> Pred_Y["Dense BBoxes (~8400 boxes)<br/>with Conf & Class scores"]
-        Pred_Y --> NMS["Non-Maximum Suppression (NMS)<br/>Sequential IoU Suppression"]
-        NMS --> Out_Y["Final Detections"]
+    subgraph YOLO["[전통적 YOLO 파이프라인] Dense Prediction + NMS"]
+        direction TB
+        InY["1. 입력 영상 (Input Image)<br/>I in R^(H x W x 3)"]
+        InY --> BB_Y["2. 백본 네트워크 (CSPDarknet)<br/>다중 스케일 특징맵 P3, P4, P5 추출"]
+        BB_Y --> Neck_Y["3. 넥 (PAFPN)<br/>Top-Down & Bottom-Up 양방향 특징 융합"]
+        Neck_Y --> Head_Y["4. 분리형 헤드 (Decoupled Head)<br/>분류 및 바운딩 박스 회귀 분리"]
+        Head_Y --> Pred_Y["5. 밀집 예측 (Dense Prediction)<br/>격자점마다 수천 개(~8,400개) 후보 상자 생성"]
+        Pred_Y --> NMS["6. 비최대 억제 (NMS) [주요 병목]<br/>순차적 IoU 억제 (O(N^2) 지연 & 폐색 객체 누락)"]
+        NMS --> Out_Y["7. 최종 검출 결과 출력"]
     end
 
-    subgraph RTDETR["RT-DETR Pipeline (NMS-Free)"]
-        InD["Input Image<br/>I in R^(H x W x 3)"] --> BB_D["Backbone (ResNet / HGNetv2)<br/>Multi-scale Feature S3, S4, S5"]
-        BB_D --> Enc["Efficient Hybrid Encoder<br/>AIFI on S5 + CCFM on S3-S5"]
-        Enc --> QuerySel["Uncertainty-Minimal Query Selection<br/>Select Top-K Query Positional Priors"]
-        QuerySel --> Dec["Transformer Decoder<br/>Cross-Attention with Multi-Scale Feats"]
-        Dec --> Out_D["Direct Set Predictions (K=300)<br/>Pure End-to-End (No NMS)"]
+    YOLO ==>|"패러다임 전환: NMS 완전 배제 및 엔드투엔드화"| RTDETR
+
+    subgraph RTDETR["[차세대 RT-DETR 파이프라인] End-to-End Direct Set Prediction"]
+        direction TB
+        InD["1. 입력 영상 (Input Image)<br/>I in R^(H x W x 3)"]
+        InD --> BB_D["2. 백본 네트워크 (HGNetv2 / ResNet)<br/>다중 스케일 특징맵 S3, S4, S5 추출"]
+        BB_D --> Enc["3. 효율적 하이브리드 인코더 (AIFI + CCFM)<br/>S5에만 셀프 어텐션 적용 + CNN 스케일 융합"]
+        Enc --> QuerySel["4. 불확실성 최소화 쿼리 선별<br/>분류 및 국소화 신뢰도가 높은 Top-K(300개) 선별"]
+        QuerySel --> Dec["5. 트랜스포머 디코더 (Cross-Attention)<br/>멀티스케일 디포머블 어텐션으로 특징 집약"]
+        Dec --> Out_D["6. 직접 집합 예측 (Direct Set Prediction)<br/>K=300개 상자 엔드투엔드 출력 (NMS-Free!)"]
     end
+
+    style NMS fill:#fff2f0,stroke:#ff4d4f,stroke-width:2px,color:#cf1322
+    style Out_D fill:#f6ffed,stroke:#52c41a,stroke-width:2px,color:#237804
 ```
 
 * **YOLO 파이프라인:** 이미지를 축소하며 추출된 다중 스케일 피처 맵($P_3, P_4, P_5$)을 PAFPN으로 양방향 결합하고, 격자점마다 수천 개의 후보 상자를 쏟아낸 뒤 NMS 알고리즘을 거쳐 겹친 상자를 직렬 제거합니다.
